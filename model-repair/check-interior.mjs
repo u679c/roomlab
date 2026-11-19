@@ -74,3 +74,8 @@ const cursor=studio.cursor;studio.setAllFixtures(false);assert.equal(studio.curs
 const wallsHouse=house.clone();scene.traverse(object=>{if(!object.isMesh||object.name.startsWith('地板'))return;const mesh=new T.Mesh(object.geometry.clone());mesh.geometry.applyMatrix4(object.matrixWorld);mesh.name=object.name;mesh.userData.category='wall';wallsHouse.add(mesh);});
 assert(createRoomPlan(wallsHouse,floorY).walls.length>0);
 console.log('Room rename and bulk switches undo/redo; actual wall plan: passed');
+const shadowBounds=new T.Box3().setFromObject(ceiling.occluder);assert(Math.abs(shadowBounds.max.y-height-.18)<1e-6);assert(Math.abs(shadowBounds.min.y-height)<1e-6);
+// Every original roof triangle center remains covered by a solid shadow slab.
+const originalRoof=ceiling.visible.geometry.attributes.position;ceiling.occluder.updateMatrixWorld(true);
+for(let i=0;i<originalRoof.count;i+=3){const center=new T.Vector3();for(let j=i;j<i+3;j++)center.add(new T.Vector3().fromBufferAttribute(originalRoof,j));center.divideScalar(3);const ray=new T.Raycaster(new T.Vector3(center.x,height+1,center.z),new T.Vector3(0,-1,0));assert(ray.intersectObject(ceiling.occluder).length>=2,'Roof slab must have top and bottom');}
+console.log('Closed roof coverage: passed');

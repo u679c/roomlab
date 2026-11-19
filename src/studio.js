@@ -205,7 +205,7 @@ export class Studio {
     this.sun.target.updateMatrixWorld();
     this.fitSunShadow();
     this.sun.intensity = state.direct;
-    this.sun.castShadow = state.weather.shadows && state.direct > .01;
+    this.sun.castShadow = state.direct > .01;
     this.sun.color.set('#fff5df').lerp(new THREE.Color('#ffab65'), state.warmth);
     this.ambientLight.intensity = state.ambient;
     this.ambientLight.color.set('#eef2fa').lerp(new THREE.Color('#f4c4a5'), state.warmth*.3);
