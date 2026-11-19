@@ -2,6 +2,8 @@
 
 在浏览器里给毛坯房换材质、摆家具，再走进房间看看效果。
 
+**[在线体验](https://roomlab.u679c.cn/)**
+
 Roomlab 基于 React、Three.js 和 Vite，围绕扫描后整理的房屋模型进行装修试摆。支持自由视角和第一人称编辑，家具与材质采用轻量简模风格，适合比较配色、布局和光照。
 
 ![Roomlab 日间全景：家具布局、日照调节与光源管理](docs/images/editor-overview.png)
