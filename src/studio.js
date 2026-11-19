@@ -14,6 +14,7 @@ import { DEFAULT_LIGHTING, sunState, validLighting } from "./lighting.js";
 import { readSurfaceMigration, migrateSurfaceProject } from "./model-migration.js";
 import { SceneEffects } from "./scene-effects.js";
 import { createCeiling, roomLightPositions } from "./interior.js";
+import { createRoomPlan, roomAtPosition } from "./rooms.js";
 
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const uid = () => crypto.randomUUID();
@@ -27,6 +28,7 @@ export class Studio {
     this.surfaceMap = new Map();
     this.furnitureMap = new Map();
     this.assets = new Map();
+    this.roomNames = new Map();
     this.history = [];
     this.cursor = -1;
     this.mode = "orbit";
@@ -282,6 +284,32 @@ export class Studio {
     this.refreshSelection();
     this.commit();
   }
+  setAllFixtures(on) {
+    if (this.busy) return;
+    for (const object of this.furniture.children) {
+      if (isLampType(object.userData.type)) setLampState(object,{on:!!on});
+    }
+    this.refreshSelection();
+    this.commit();
+  }
+  lampRoom(object) {
+    const automatic = roomAtPosition(this.roomPlan?.rooms || [],object.position);
+    const assignment = object.userData.roomId || '';
+    return { automatic, assignment, id: assignment === 'unassigned' ? null : assignment || automatic };
+  }
+  assignLampRoom(id,roomId) {
+    const object = this.furnitureMap.get(id);
+    if (this.busy || object?.parent !== this.furniture || !isLampType(object.userData.type)) return;
+    if (roomId && roomId !== 'unassigned' && !this.roomPlan.rooms.some(room=>room.id===roomId)) return;
+    object.userData.roomId = roomId || undefined;
+    this.refreshSelection();this.commit();
+  }
+  renameRoom(id,name) {
+    const trimmed = name.trim();
+    if (this.busy || !this.roomNames.has(id) || !trimmed || trimmed.length>32) return;
+    this.roomNames.set(id,trimmed);
+    this.commit();
+  }
   invalidateInteriorShadows() {
     for (const object of this.furniture.children) {
       const light = object.getObjectByName('fixture-light');
@@ -322,6 +350,13 @@ export class Studio {
       snap: this.snap,
       canUndo: this.cursor > 0,
       canRedo: this.cursor < this.history.length - 1,
+      roomPlan: this.roomPlan ? { ...this.roomPlan, rooms: this.roomPlan.rooms.map(room=>({...room,name:this.roomNames.get(room.id)||room.name})) } : null,
+      lights: this.furniture.children.filter(object=>isLampType(object.userData.type)).map(object=>{
+        const room=this.lampRoom(object);
+        return {id:object.userData.id,name:object.userData.label,on:!!object.userData.lamp?.on,
+          roomId:room.id,roomAssignment:room.assignment,roomName:this.roomNames.get(room.id)||'未分配',
+          autoRoomName:this.roomNames.get(room.automatic)||'未分配',position:object.position.toArray()};
+      }),
       furnitureCount: this.furniture.children.length,
       furniture: this.furniture.children.map((o) => ({ id: o.userData.id, name: o.userData.label })),
       wallCount: this.wallCount || 0,
@@ -363,6 +398,8 @@ export class Studio {
     this.ceilingY = this.bounds.max.y;
     this.ceiling = createCeiling(this.house, this.ceilingY);
     this.content.add(this.ceiling.visible, this.ceiling.occluder);
+    this.roomPlan = createRoomPlan(this.house, this.floorY);
+    this.roomNames = new Map(this.roomPlan.rooms.map(room=>[room.id,room.name]));
     this.defaultLightPositions = roomLightPositions(this.house, this.floorY);
     this.seedInteriorLights();
     this.updateLighting();
@@ -773,6 +810,7 @@ export class Studio {
       version: 1,
       model: "apartment-v1",
       interiorVersion: 1,
+      rooms: this.roomPlan?.rooms.map(room=>({id:room.id,name:this.roomNames.get(room.id)||room.name})),
       lighting: { ...this.lighting },
       surfaces: [...this.surfaceMap].map(([id, o]) => ({ id, spec: copy(o.userData.spec) })),
       furniture: this.furniture.children.map((o) => ({
@@ -782,6 +820,7 @@ export class Studio {
         source: o.userData.source,
         door: o.userData.door ? { ...o.userData.door } : undefined,
         lamp: o.userData.lamp ? { ...o.userData.lamp } : undefined,
+        roomId: isLampType(o.userData.type) ? o.userData.roomId : undefined,
         position: o.position.toArray(),
         rotation: o.rotation.toArray(),
         scale: o.scale.toArray(),
@@ -804,6 +843,7 @@ export class Studio {
     this.restoring = true;
     try {
     this.clearDoorHover();
+    this.roomNames = new Map((this.roomPlan?.rooms || []).map(room=>[room.id,state.rooms?.find(saved=>saved.id===room.id)?.name || room.name]));
     this.updateLighting(state.lighting || DEFAULT_LIGHTING);
     this.select(null);
     for (const { id, spec } of state.surfaces) {
@@ -826,7 +866,10 @@ export class Studio {
         this.furnitureMap.set(item.id, object);
       }
       if (item.type === 'door') setDoorPose(object,item.door || {open:false,hinge:'left'},true);
-      if (isLampType(item.type)) setLampState(object,item.lamp || {on:true});
+      if (isLampType(item.type)) {
+        setLampState(object,item.lamp || {on:true});
+        object.userData.roomId = item.roomId || undefined;
+      }
       object.position.fromArray(item.position);
       object.rotation.fromArray(item.rotation);
       object.scale.fromArray(item.scale);
@@ -883,6 +926,11 @@ export class Studio {
     };
     const vec = (a) => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
     if (p?.version !== 1 || p.model !== "apartment-v1" || !Array.isArray(p.surfaces) || !Array.isArray(p.furniture) || !Array.isArray(p.assets)) fail();
+    if (p.rooms !== undefined) {
+      const known = new Set((this.roomPlan?.rooms || []).map(room=>room.id));
+      if (!Array.isArray(p.rooms) || p.rooms.length !== known.size || new Set(p.rooms.map(room=>room?.id)).size !== known.size) fail();
+      for (const room of p.rooms) if (!known.has(room?.id) || typeof room.name !== 'string' || !room.name.trim() || room.name.length>32) fail();
+    }
     if (p.interiorVersion !== undefined && p.interiorVersion !== 1) fail();
     if (p.lighting !== undefined && !validLighting(p.lighting)) fail();
     if (p.surfaces.length !== this.surfaceMap.size || new Set(p.surfaces.map((s) => s.id)).size !== this.surfaceMap.size) fail();
@@ -927,6 +975,7 @@ export class Studio {
       if (f.source ? !ids.has(f.source) : !CATALOG.some((c) => c.id === f.type)) fail();
       if (f.door !== undefined && (f.type!=='door' || !f.door || typeof f.door.open!=='boolean' || !['left','right'].includes(f.door.hinge))) fail();
       if (f.lamp !== undefined && (!isLampType(f.type) || !f.lamp || typeof f.lamp.on !== 'boolean')) fail();
+      if (f.roomId !== undefined && (!isLampType(f.type) || typeof f.roomId !== 'string' || (f.roomId && f.roomId !== 'unassigned' && !this.roomPlan?.rooms.some(room=>room.id===f.roomId)))) fail();
       objectIds.add(f.id);
     }
   }

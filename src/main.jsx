@@ -6,9 +6,10 @@ import { FINISHES, FINISH_CATEGORIES, COLORS, defaultFinish, materialPreview } f
 import { FURNITURE_CATEGORIES, searchFurniture } from './furniture.js';
 import { readLocal, createAutosaver } from './storage.js';
 import { DEFAULT_LIGHTING, SEASONS, WEATHER, sunState, timeLabel, timePresets } from './lighting.js';
+import { LightPanel, InspectorTabs } from './LightPanel.jsx';
 import './style.css';
 
-const initialView = { lighting: DEFAULT_LIGHTING, selected: null, mode: 'orbit', tool: 'select', snap: true, canUndo: false, canRedo: false, furniture: [], furnitureCount: 0, wallCount: 0, floorCount: 0, transform: 'translate' };
+const initialView = { lights: [], roomPlan: null, lighting: DEFAULT_LIGHTING, selected: null, mode: 'orbit', tool: 'select', snap: true, canUndo: false, canRedo: false, furniture: [], furnitureCount: 0, wallCount: 0, floorCount: 0, transform: 'translate' };
 const iconMap = { sofa: Sofa, chair: Armchair, table: Table2, bed: BedDouble, cabinet: Box, plant: Leaf, tv: Monitor, shelf: BookOpen, fridge: Refrigerator, kitchen: CookingPot, bath: Bath, door: DoorOpen, rug: RectangleHorizontal, lamp: LampFloor };
 function IconButton({ icon: Icon, label, active = false, ...props }) { return <button type="button" className={`icon-button ${active ? 'active' : ''}`} title={label} aria-label={label} {...props}><Icon size={18} /></button>; }
 function NumberField({ label, value, onCommit, step = .1, min }) {
@@ -62,6 +63,7 @@ function App() {
   };
   const autosaveReady = useRef(false), queueAutosave = useRef(() => {}), autosaver = useRef(null);
   const host = useRef(null), engine = useRef(null), importInput = useRef(null), textureInput = useRef(null), projectInput = useRef(null), toastTimer = useRef(null);
+  const [inspectorTab,setInspectorTab] = useState('objects');
   const [view, setView] = useState(initialView), [loading, setLoading] = useState(true), [progress, setProgress] = useState(0), [error, setError] = useState('');
   const [tab, setTab] = useState('material'), [brush, setBrush] = useState(defaultFinish()), [toast, setToast] = useState(''), [busy, setBusy] = useState(''), [menu, setMenu] = useState(false), [saveStatus, setSaveStatus] = useState('loading'), [recoveryProject, setRecoveryProject] = useState(null), [filter, setFilter] = useState('全部'), [help, setHelp] = useState(false), [libraryOpen, setLibraryOpen] = useState(true), [inspectorOpen, setInspectorOpen] = useState(true), [furnitureSearch, setFurnitureSearch] = useState(''), [doorHover, setDoorHover] = useState(null), [materialFilter, setMaterialFilter] = useState('全部');
   const notify = message => { setToast(message); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 4200); };
@@ -205,8 +207,9 @@ function App() {
         <div className="viewport-bottom"><span className="orbit-hint">{view.mode === 'orbit' ? '单击选择 · 拖动旋转 · 右键平移' : '单击选择 · 左键拖动转向 · WASD 移动'}</span><button className="capture-button" title="下载当前视角 PNG" disabled={loading} onClick={() => engine.current.screenshot()}><Camera size={14} /><span>截图</span></button></div>
         {(loading || error) && <div className="loading-overlay"><div className="loading-mark"><Layers3 size={32} /></div><h2>{error ? '暂时无法打开空间' : '加载户型…'}</h2><p>{error || ''}</p>{error ? <button className="button primary" onClick={() => window.location.reload()}>重新加载</button> : <><div className="loading-track"><span style={{ width: `${progress}%` }} /></div><small>{progress}%</small></>}</div>}
       </section>
-      <aside className="inspector-panel" aria-label="家具列表与对象设置" hidden={!inspectorOpen} style={{'--furniture-list-height': `${listRatio*100}%`}}>
-        <div className="panel-heading"><h2>对象</h2><IconButton icon={PanelRightClose} label="收起右侧栏" onClick={() => setInspectorOpen(false)}/></div>
+      <aside className="inspector-panel" aria-label="对象与光源设置" hidden={!inspectorOpen} style={{'--furniture-list-height': `${listRatio*100}%`}}>
+        <div className="panel-heading"><InspectorTabs active={inspectorTab} onChange={setInspectorTab}/><IconButton icon={PanelRightClose} label="收起右侧栏" onClick={() => setInspectorOpen(false)}/></div>
+        <div id="inspector-objects" role="tabpanel" aria-labelledby="inspector-tab-objects" className="object-panel-content" hidden={inspectorTab!=='objects'}>
         <div className="scene-section"><div className="section-heading"><h2>已放置家具</h2><span>{view.furnitureCount}</span></div>{view.furniture.length ? <div className="scene-list">{view.furniture.map(item => <button key={item.id} className={selection?.id === item.id ? 'selected' : ''} onClick={() => engine.current.selectFurniture(item.id)}><Box size={14} /><span>{item.name}</span><ChevronRight size={13} /></button>)}</div> : <div className="empty-furniture"><Armchair size={20} /><span>暂无家具</span></div>}</div>
         <div className="scene-resize-handle" role="separator" aria-label="调整家具列表高度" aria-orientation="horizontal" aria-valuemin={15} aria-valuemax={70} aria-valuenow={Math.round(listRatio*100)} aria-valuetext={`${Math.round(listRatio*100)}%`} tabIndex={0} title="拖动调整高度，双击恢复 30%" onPointerDown={beginListResize} onPointerMove={moveListResize} onPointerUp={endListResize} onPointerCancel={endListResize} onLostPointerCapture={()=>{listResize.current=null;}} onDoubleClick={()=>setListRatio(.3)} onKeyDown={event=>{if(event.key==='ArrowUp'||event.key==='ArrowDown'){event.preventDefault();event.stopPropagation();setListRatio(ratio=>clampListRatio(ratio+(event.key === 'ArrowDown' ? .025 : -.025)));}else if(event.key==='Home'){event.preventDefault();setListRatio(.3);}}}/>
         {selection && <><div className="inspector-heading"><h2>{furnitureSelected ? '家具' : selection.category === 'floor' ? '地板' : '墙面'}</h2><IconButton icon={X} label="取消选择" onClick={() => engine.current.select(null)} /></div>
@@ -233,6 +236,10 @@ function App() {
           </> : <div className="empty-inspector"><div className="selection-illustration"><MousePointer2 size={33} strokeWidth={1.3} /><span className="corner tl" /><span className="corner tr" /><span className="corner bl" /><span className="corner br" /></div><h2>未选择对象</h2><p>点击墙面、地板或家具</p></div>}
         </div>
         </>}
+        </div>
+        <div id="inspector-lights" role="tabpanel" aria-labelledby="inspector-tab-lights" className="light-panel-content" hidden={inspectorTab!=='lights'}>
+          <LightPanel lights={view.lights} plan={view.roomPlan} selectedId={selection?.id} disabled={loading || !!busy} onSelect={id=>engine.current.selectFurniture(id)} onToggle={id=>engine.current.toggleFixture(id)} onToggleAll={on=>engine.current.setAllFixtures(on)} onAssign={(id,roomId)=>engine.current.assignLampRoom(id,roomId)} onRename={(id,name)=>engine.current.renameRoom(id,name)} onAdd={()=>engine.current.addFurniture('ceiling-light')}/>
+        </div>
       </aside>
     </main>
     <footer className="statusbar"><span>{error ? '加载失败' : loading ? '加载中' : ''}</span><span>{selection ? selection.name : '选择墙面、地板或家具进行编辑'}</span><span>{view.wallCount} 墙体 <span className="status-separator">·</span> {view.floorCount} 地板 <span className="status-separator">·</span> {view.furnitureCount} 家具</span></footer>

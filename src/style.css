@@ -277,3 +277,49 @@ svg { flex-shrink: 0; stroke-width: 1.7; }
 .autosave-status { font-size: 11px; white-space: nowrap; color: var(--muted); }
 .autosave-status.error, .autosave-status.restore-error { color: #a23735; }
 @media(max-width:820px) { .autosave-status { max-width: 80px; white-space: normal; font-size: 10px; } }
+
+.inspector-tabs { display: flex; align-self: stretch; gap: 14px; }
+.inspector-tabs > button { min-width: 35px; padding: 0 1px; border-bottom: 2px solid transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
+.inspector-tabs > button.selected { color: var(--blue); border-bottom-color: var(--blue); }
+.object-panel-content, .light-panel-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.light-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; font-size: 12px; }
+.light-panel fieldset { min-width: 0; margin: 0; border: 0; }
+.light-toolbar { flex-shrink: 0; padding: 14px; border-bottom: 1px solid var(--line) !important; }
+.light-summary { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+.light-summary > span + span { color: var(--muted); font-size: 11px; }
+.light-bulk-actions { display: flex; gap: 6px; margin-bottom: 7px; }
+.light-bulk-actions > button { flex: 1; min-width: 0; }
+.light-panel-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.room-editor-toggle { width: 100%; min-height: 42px; display: flex; align-items: center; gap: 7px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.room-editor-toggle > span { flex: 1; text-align: left; }
+.room-editor-toggle > .expanded { transform: rotate(180deg); }
+.room-editor { padding: 12px 14px 16px; border-bottom: 1px solid var(--line); }
+.room-editor > p { font-size: 11px; color: var(--muted); margin: 0 0 8px; }
+.room-plan { display: block; width: 100%; max-height: 340px; margin-bottom: 12px; background: var(--field); }
+.plan-room { cursor: pointer; outline: none; }
+.plan-room .room-fill { fill: #e6ebf3; }
+.plan-room:hover .room-fill { fill: #d4dff7; }
+.plan-room.selected .room-fill { fill: #cbdafa; }
+.plan-room .room-outline { fill: none; stroke: #9baac1; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.plan-room:focus-visible .room-outline { stroke: var(--blue); stroke-width: 2; }
+.plan-room text { fill: var(--ink); font-size: .28px; font-weight: 500; pointer-events: none; }
+.plan-walls { fill: none; stroke: #53647e; stroke-width: 1.4; vector-effect: non-scaling-stroke; pointer-events: none; }
+.plan-light { fill: white; stroke: #68758b; stroke-width: 1; vector-effect: non-scaling-stroke; pointer-events: none; }
+.plan-light.on { fill: #c68926; stroke: #805911; }
+.room-name-field { display: flex; flex-direction: column; gap: 7px; font-size: 11px; }
+.room-name-field input { width: 100%; min-height: 32px; padding: 6px 8px; border: 1px solid var(--line); background: white; color: var(--ink); border-radius: var(--radius); }
+.light-list { padding: 0 14px; }
+.light-row { padding: 13px 0; border-bottom: 1px solid var(--line); }
+.light-row-heading { display: flex; align-items: center; gap: 6px; }
+.light-name { display: flex; flex: 1; min-width: 0; align-items: center; gap: 7px; padding: 4px 0; text-align: left; }
+.light-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.light-row.selected .light-name { color: var(--blue); }
+.light-switch { display: flex; align-items: center; gap: 5px; padding: 4px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font-size: 11px; }
+.light-switch > span { width: 6px; height: 6px; border-radius: 50%; background: #8590a1; }
+.light-switch.on { color: var(--blue); background: var(--selected); border-color: #bdcdf2; }
+.light-switch.on > span { background: var(--blue); }
+.light-room-field { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 11px; color: var(--muted); }
+.light-room-field select { flex: 1; min-width: 0; min-height: 29px; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); background: white; }
+.light-panel select:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.empty-lights { padding: 26px 0; display: flex; align-items: center; gap: 9px; color: var(--muted); }
+

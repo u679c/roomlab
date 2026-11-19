@@ -4,6 +4,7 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createCeiling, roomLightPositions } from '../src/interior.js';
 import { createFurniture, setLampState, setLampView, isLampType, CATALOG } from '../src/furniture.js';
+import { createRoomPlan, roomAtPosition } from '../src/rooms.js';
 import { Studio } from '../src/studio.js';
 import { DEFAULT_LIGHTING } from '../src/lighting.js';
 import { defaultFinish } from '../src/materials.js';
@@ -49,3 +50,27 @@ const legacy={...saved,furniture:[]};delete legacy.interiorVersion;studio.restor
 const before=studio.furniture.children[0];studio.selection=before;studio.duplicateSelected();const duplicate=studio.furniture.children.at(-1);setLampState(duplicate,{on:false});assert.equal(before.userData.lamp.on,true);assert(before.getObjectByName('fixture-emitter').material!==duplicate.getObjectByName('fixture-emitter').material);
 console.log({ceilings:'camera-hidden / shadow-enabled',fixtures:positions.length,lampState:'toggle, restore, deletion, legacy migration, independent copies passed',catalog:CATALOG.length});
 
+const plan=createRoomPlan(house,floorY);assert.equal(plan.rooms.length,8);
+studio.roomPlan=plan;studio.roomNames=new Map(plan.rooms.map(room=>[room.id,room.name]));
+for(const fixture of studio.furniture.children){const auto=roomAtPosition(plan.rooms,fixture.position);assert(auto,'Default light outside rooms');}
+const [roomA,roomB]=plan.rooms,fixture=studio.furniture.children[0];
+studio.renameRoom(roomA.id,'客厅');assert.equal(studio.roomNames.get(roomA.id),'客厅');
+studio.assignLampRoom(fixture.userData.id,roomB.id);assert.equal(studio.lampRoom(fixture).id,roomB.id);
+studio.setAllFixtures(false);assert(studio.furniture.children.every(o=>!o.userData.lamp.on));
+const roomProject={...studio.snapshot(),assets:[]};studio.validateProject(roomProject);
+studio.renameRoom(roomA.id,'临时名称');studio.assignLampRoom(fixture.userData.id,'unassigned');
+studio.restore(roomProject);assert.equal(studio.roomNames.get(roomA.id),'客厅');assert.equal(studio.lampRoom(studio.furniture.children[0]).id,roomB.id);
+assert(studio.furniture.children.every(o=>!o.userData.lamp.on));
+studio.setAllFixtures(true);assert(studio.furniture.children.every(o=>o.userData.lamp.on));
+studio.assignLampRoom(fixture.userData.id,'');assert.equal(studio.lampRoom(fixture).assignment,'');assert.equal(studio.lampRoom(fixture).id,roomAtPosition(plan.rooms,fixture.position));
+studio.assignLampRoom(fixture.userData.id,'unassigned');assert.equal(studio.lampRoom(fixture).id,null);
+assert.throws(()=>studio.validateProject({...roomProject,rooms:[{id:'bad',name:'错误'}]}));
+assert.throws(()=>studio.validateProject({...roomProject,furniture:[{...roomProject.furniture[0],roomId:'bad'}]}));
+// Renaming never mutates the geometry or room IDs in the plan.
+assert.equal(plan.rooms[0].name,'房间 1');assert(plan.rooms.every(room=>room.path&&room.outline));
+console.log({rooms:plan.rooms.length,names:'rename and restore passed',lampRooms:'automatic, manual, unassigned, restore passed',bulk:'all on/off and saved state passed'});
+studio.renameRoom(roomA.id,'起居室');studio.undo(-1);assert.equal(studio.roomNames.get(roomA.id),'客厅');studio.undo(1);assert.equal(studio.roomNames.get(roomA.id),'起居室');
+const cursor=studio.cursor;studio.setAllFixtures(false);assert.equal(studio.cursor,cursor+1);studio.undo(-1);assert(studio.furniture.children.every(o=>o.userData.lamp.on));studio.undo(1);assert(studio.furniture.children.every(o=>!o.userData.lamp.on));
+const wallsHouse=house.clone();scene.traverse(object=>{if(!object.isMesh||object.name.startsWith('地板'))return;const mesh=new T.Mesh(object.geometry.clone());mesh.geometry.applyMatrix4(object.matrixWorld);mesh.name=object.name;mesh.userData.category='wall';wallsHouse.add(mesh);});
+assert(createRoomPlan(wallsHouse,floorY).walls.length>0);
+console.log('Room rename and bulk switches undo/redo; actual wall plan: passed');
