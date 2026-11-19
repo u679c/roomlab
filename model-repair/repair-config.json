@@ -1,0 +1,12 @@
+{
+  "wall_height": 2.6,
+  "doorway": {
+    "room": "5",
+    "connects_to": "2 号过道",
+    "wall": "立方体.028",
+    "axis": "x",
+    "center": 0.4436,
+    "width": 0.85,
+    "height": 2.1
+  }
+}

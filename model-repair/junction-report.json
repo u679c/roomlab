@@ -1,0 +1,174 @@
+{
+  "trimmed": [
+    {
+      "wall": "立方体.038",
+      "axis": 1,
+      "side": 0,
+      "old": 0.7267739772796631,
+      "new": 0.7503518462181091,
+      "removed_m": 0.023577868938446045,
+      "aligned_to": "立方体.033"
+    },
+    {
+      "wall": "立方体.033",
+      "axis": 0,
+      "side": 0,
+      "old": 0.9425449371337891,
+      "new": 0.9474591016769409,
+      "removed_m": 0.0049141645431518555,
+      "aligned_to": "立方体.032"
+    },
+    {
+      "wall": "立方体.033",
+      "axis": 0,
+      "side": 1,
+      "old": 3.7880544662475586,
+      "new": 3.7548439502716064,
+      "removed_m": 0.03321051597595215,
+      "aligned_to": "立方体.038"
+    },
+    {
+      "wall": "立方体.032",
+      "axis": 1,
+      "side": 0,
+      "old": -1.4821397066116333,
+      "new": -1.4645140171051025,
+      "removed_m": 0.01762568950653076,
+      "aligned_to": "立方体.034"
+    },
+    {
+      "wall": "立方体.032",
+      "axis": 1,
+      "side": 1,
+      "old": 2.6902523040771484,
+      "new": 2.690120220184326,
+      "removed_m": 0.00013208389282226562,
+      "aligned_to": "立方体.029"
+    },
+    {
+      "wall": "立方体.029",
+      "axis": 0,
+      "side": 0,
+      "old": 0.9348231554031372,
+      "new": 0.9474591016769409,
+      "removed_m": 0.012635946273803711,
+      "aligned_to": "立方体.032"
+    },
+    {
+      "wall": "立方体.022",
+      "axis": 0,
+      "side": 1,
+      "old": -2.0633158683776855,
+      "new": -2.0723137855529785,
+      "removed_m": 0.008997917175292969,
+      "aligned_to": "立方体.037"
+    }
+  ],
+  "straightened": [
+    {
+      "wall": "立方体.040",
+      "coordinates_adjusted": 20,
+      "max_adjustment_m": 7.152557373046875e-07
+    },
+    {
+      "wall": "立方体.039",
+      "coordinates_adjusted": 12,
+      "max_adjustment_m": 5.960464477539062e-07
+    },
+    {
+      "wall": "立方体.038",
+      "coordinates_adjusted": 12,
+      "max_adjustment_m": 2.384185791015625e-07
+    },
+    {
+      "wall": "立方体.036",
+      "coordinates_adjusted": 22,
+      "max_adjustment_m": 2.384185791015625e-07
+    },
+    {
+      "wall": "立方体.035",
+      "coordinates_adjusted": 12,
+      "max_adjustment_m": 2.384185791015625e-07
+    },
+    {
+      "wall": "立方体.034",
+      "coordinates_adjusted": 38,
+      "max_adjustment_m": 0.0004974603652954102
+    },
+    {
+      "wall": "立方体.033",
+      "coordinates_adjusted": 16,
+      "max_adjustment_m": 0.0003555417060852051
+    },
+    {
+      "wall": "立方体.032",
+      "coordinates_adjusted": 32,
+      "max_adjustment_m": 2.682209014892578e-07
+    },
+    {
+      "wall": "立方体.031",
+      "coordinates_adjusted": 24,
+      "max_adjustment_m": 0.00044929981231689453
+    },
+    {
+      "wall": "立方体.030",
+      "coordinates_adjusted": 24,
+      "max_adjustment_m": 0.0004401206970214844
+    },
+    {
+      "wall": "立方体.029",
+      "coordinates_adjusted": 16,
+      "max_adjustment_m": 0.0003516674041748047
+    },
+    {
+      "wall": "立方体.028",
+      "coordinates_adjusted": 32,
+      "max_adjustment_m": 0.00038760900497436523
+    },
+    {
+      "wall": "立方体.037",
+      "coordinates_adjusted": 24,
+      "max_adjustment_m": 2.384185791015625e-07
+    },
+    {
+      "wall": "立方体.027",
+      "coordinates_adjusted": 28,
+      "max_adjustment_m": 0.00033354759216308594
+    },
+    {
+      "wall": "立方体.026",
+      "coordinates_adjusted": 8,
+      "max_adjustment_m": 2.384185791015625e-07
+    },
+    {
+      "wall": "立方体.025",
+      "coordinates_adjusted": 16,
+      "max_adjustment_m": 7.319450378417969e-05
+    },
+    {
+      "wall": "立方体.024",
+      "coordinates_adjusted": 12,
+      "max_adjustment_m": 2.384185791015625e-07
+    },
+    {
+      "wall": "立方体.023",
+      "coordinates_adjusted": 40,
+      "max_adjustment_m": 0.0006365776062011719
+    },
+    {
+      "wall": "立方体.022",
+      "coordinates_adjusted": 24,
+      "max_adjustment_m": 0.00021076202392578125
+    },
+    {
+      "wall": "立方体.021",
+      "coordinates_adjusted": 16,
+      "max_adjustment_m": 8.678436279296875e-05
+    },
+    {
+      "wall": "立方体.007",
+      "coordinates_adjusted": 8,
+      "max_adjustment_m": 2.384185791015625e-07
+    }
+  ]
+}
