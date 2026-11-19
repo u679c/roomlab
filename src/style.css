@@ -323,3 +323,5 @@ svg { flex-shrink: 0; stroke-width: 1.7; }
 .light-panel select:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
 .empty-lights { padding: 26px 0; display: flex; align-items: center; gap: 9px; color: var(--muted); }
 
+.sun-altitude-auto { padding: 0 3px; border-radius: 2px; font-size: 10px; color: var(--muted); }
+.sun-altitude-auto.selected { color: var(--blue); background: var(--selected); }

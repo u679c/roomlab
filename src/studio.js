@@ -853,7 +853,7 @@ export class Studio {
     try {
     this.clearDoorHover();
     this.roomNames = new Map((this.roomPlan?.rooms || []).map(room=>[room.id,state.rooms?.find(saved=>saved.id===room.id)?.name || room.name]));
-    this.updateLighting(state.lighting || DEFAULT_LIGHTING);
+    this.updateLighting({ ...DEFAULT_LIGHTING, ...state.lighting });
     this.select(null);
     for (const { id, spec } of state.surfaces) {
       const o = this.surfaceMap.get(id);
