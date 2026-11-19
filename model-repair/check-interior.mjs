@@ -86,3 +86,13 @@ assert(bounce.colors.value[0].length()>0);assert(bounce.colors.value.slice(1).ev
 const shader={uniforms:{},fragmentShader:T.ShaderLib.standard.fragmentShader};bounceMaterial.onBeforeCompile(shader,{});assert(shader.fragmentShader.includes('irradiance+=roomBounceColors[0]'));assert.equal(shader.uniforms.roomBounceColors,bounce.colors);assert.equal(shader.uniforms.roomBounceWorldFromView.value,bounceCamera.matrixWorld);
 const cacheKey=bounceMaterial.customProgramCacheKey();setLampState(bounceFixture,{on:false});bounce.sync(bounceContent,[bounceFixture]);assert(bounce.colors.value.every(v=>v.length()===0));assert.equal(bounceMaterial.customProgramCacheKey(),cacheKey,'Switching lights must not recompile materials');
 console.log('Closed roof coverage, room-scoped bounce and lamp off state: passed');
+const {NaturalLight}=await import('../src/natural-light.js');
+const {sunState}=await import('../src/lighting.js');
+const daylightHouse=wallsHouse.clone();daylightHouse.add(ceiling.occluder.clone());
+const started=performance.now(),natural=new NaturalLight(daylightHouse,plan,floorY),sunny=natural.evaluate(sunState(DEFAULT_LIGHTING));
+assert(sunny.some(color=>color.length()>.1),'Daylight should enter through openings');
+assert(natural.evaluate(sunState({...DEFAULT_LIGHTING,time:0})).every(color=>color.length()===0),'No solar bounce at night');
+const rainy=natural.evaluate(sunState({...DEFAULT_LIGHTING,weather:'rain'}));assert(sunny.reduce((sum,v)=>sum+v.length(),0)>rainy.reduce((sum,v)=>sum+v.length(),0));
+setLampState(bounceFixture,{on:false});bounce.setDaylight(sunny);bounce.sync(bounceContent,[bounceFixture]);assert(bounce.colors.value.some(color=>color.length()>0),'Daylight remains when lamps are off');
+bounce.setDaylight(natural.evaluate(sunState({...DEFAULT_LIGHTING,time:0})));bounce.sync(bounceContent,[bounceFixture]);assert(bounce.colors.value.every(color=>color.length()===0));
+console.log({naturalLight:'sky access, sunny/rainy contrast, night darkness and lamp independence passed',skyAccess:natural.skyAccess.map(v=>Number(v.toFixed(3))),staticSamplingMs:Math.round(performance.now()-started)});natural.dispose();

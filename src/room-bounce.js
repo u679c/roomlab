@@ -11,6 +11,7 @@ export class RoomBounce {
     this.rooms=plan.rooms;
     this.bound=new WeakSet();
     this.colors={value:this.rooms.map(()=>new Vector3())};
+    this.daylight=this.rooms.map(()=>new Vector3());
     this.worldFromView={value:camera.matrixWorld};
     const declarations=`uniform vec3 roomBounceColors[${this.rooms.length}];
       uniform mat4 roomBounceWorldFromView;
@@ -41,6 +42,9 @@ export class RoomBounce {
     for(const char of this.lighting)hash=Math.imul(hash^char.charCodeAt(0),16777619);
     this.key=`room-bounce-v1:${hash>>>0}`;
   }
+  setDaylight(colors) {
+    this.daylight.forEach((color,index)=>color.copy(colors[index] || new Vector3()));
+  }
   sync(content, furniture) {
     const counts=new Map();
     for(const object of furniture){
@@ -51,7 +55,7 @@ export class RoomBounce {
     const warm=new Color('#fff0dc');
     this.rooms.forEach((room,index)=>{
       const amount=1.6*(1-Math.exp(-.9*(counts.get(room.id)||0)));
-      this.colors.value[index].set(warm.r*amount,warm.g*amount,warm.b*amount);
+      this.colors.value[index].set(warm.r*amount,warm.g*amount,warm.b*amount).add(this.daylight[index]);
     });
     content.traverse(object=>{
       for(const material of Array.isArray(object.material)?object.material:[object.material]){

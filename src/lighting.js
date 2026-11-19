@@ -41,7 +41,7 @@ export function sunState(settings) {
   const elevation = altitude*Math.PI/180;
   return {sunrise,sunset,day,altitude,daylight,warmth,weather,
     position:[-Math.sin(azimuth)*Math.cos(elevation)*24,Math.sin(elevation)*24,Math.cos(azimuth)*Math.cos(elevation)*24],
-    direct:3.2*sunlight*weather.direct*settings.intensity,
+    direct:6.4*sunlight*weather.direct*settings.intensity,
     ambient:.06+.52*daylight*weather.ambient,
     fill:.015+.12*daylight*weather.ambient,
     period:day?(altitude<20?(settings.time<12?'清晨':'黄昏'):'白天'):(daylight>0?'暮光':'夜晚'),
