@@ -15,6 +15,7 @@ import { readSurfaceMigration, migrateSurfaceProject } from "./model-migration.j
 import { SceneEffects } from "./scene-effects.js";
 import { createCeiling, roomLightPositions } from "./interior.js";
 import { createRoomPlan, roomAtPosition } from "./rooms.js";
+import { RoomBounce } from "./room-bounce.js";
 
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const uid = () => crypto.randomUUID();
@@ -311,6 +312,7 @@ export class Studio {
     this.commit();
   }
   invalidateInteriorShadows() {
+    this.roomBounce?.sync(this.content,this.furniture.children);
     for (const object of this.furniture.children) {
       const light = object.getObjectByName('fixture-light');
       if (light) light.shadow.needsUpdate = true;
@@ -400,6 +402,7 @@ export class Studio {
     this.content.add(this.ceiling.visible, this.ceiling.occluder);
     this.roomPlan = createRoomPlan(this.house, this.floorY);
     this.roomNames = new Map(this.roomPlan.rooms.map(room=>[room.id,room.name]));
+    this.roomBounce = new RoomBounce(this.roomPlan,this.camera,this.ceilingY);
     this.defaultLightPositions = roomLightPositions(this.house, this.floorY);
     this.seedInteriorLights();
     this.updateLighting();
