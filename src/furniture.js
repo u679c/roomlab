@@ -34,7 +34,9 @@ const extraFurniture = [
   ['shower', '淋浴区', '卫浴', '0.9 × 0.9 m', 'bath', '淋浴 花洒 shower'],
   ['door', '平开门', '门窗', '1.0 × 2.16 m', 'door', '房门 门 door'],
   ['rug', '地毯', '装饰', '2.0 × 1.4 m', 'rug', '地毯 carpet rug'],
-  ['floor-lamp', '落地灯', '装饰', '直径 0.44 m', 'lamp', '落地灯 灯 lamp'],
+  ['ceiling-light', '圆形吸顶灯', '灯具', '直径 0.45 m', 'lamp', '吸顶灯 顶灯 灯 照明 light lamp'],
+  ['pendant-light', '吊灯', '灯具', '直径 0.4 m', 'lamp', '吊灯 餐灯 灯 照明 light lamp'],
+  ['floor-lamp', '落地灯', '灯具', '直径 0.44 m', 'lamp', '落地灯 灯 lamp'],
 ];
 CATALOG.push(...extraFurniture.map(([id,name,category,size,icon,keywords])=>({id,name,category,size,icon,keywords})));
 export const FURNITURE_CATEGORIES = ['全部', ...new Set(CATALOG.map(item=>item.category))];
@@ -52,6 +54,22 @@ export function setDoorPose(root, door, immediate = false) {
   const angle = root.userData.door.open ? (left ? -Math.PI/2 : Math.PI/2) : 0;
   hinge.userData.targetAngle = angle;
   if (immediate) hinge.rotation.y = angle;
+}
+
+export const isLampType = type => ['ceiling-light', 'pendant-light', 'floor-lamp'].includes(type);
+export function setLampView(root, mode) {
+  if (root.userData.mount !== 'ceiling') return;
+  root.traverse(object => { if (object.isMesh) object.visible = mode === 'walk'; });
+}
+export function setLampState(root, lamp = { on: true }) {
+  const light = root.getObjectByName('fixture-light');
+  if (!light) return;
+  root.userData.lamp = { on: lamp.on !== false };
+  light.target = root.getObjectByName('fixture-target');
+  light.intensity = root.userData.lamp.on ? 28 : 0;
+  light.shadow.needsUpdate = true;
+  const emitter = root.getObjectByName('fixture-emitter');
+  if (emitter) emitter.material.emissiveIntensity = root.userData.lamp.on ? 1.2 : 0;
 }
 
 export function createFurniture(type) {
@@ -169,6 +187,12 @@ export function createFurniture(type) {
     cylinder(.018,.018,1.75,[-.3,.94,-.37],dark);box([.04,.035,.23],[-.3,1.83,-.27],dark);cylinder(.09,.09,.025,[-.3,1.81,-.16],dark);
   } else if (type === 'rug') {
     box([2,.018,1.4],[0,.009,0],fabric);for(const x of [-.85,.85])box([.045,.002,1.3],[x,.019,0],cream);
+  } else if (type === 'ceiling-light') {
+    cylinder(.225,.225,.075,[0,.0375,0],cream);
+  } else if (type === 'pendant-light') {
+    cylinder(.055,.055,.035,[0,.565,0],dark);
+    cylinder(.008,.008,.38,[0,.36,0],dark);
+    cylinder(.09,.2,.18,[0,.11,0],cream);
   } else if (type === 'floor-lamp') {
     cylinder(.2,.22,.04,[0,.02,0],dark);cylinder(.018,.018,1.35,[0,.705,0],dark);cylinder(.15,.23,.32,[0,1.47,0],cream);
   } else if (type === 'door') {
@@ -178,6 +202,29 @@ export function createFurniture(type) {
     const panel=new THREE.Mesh(new THREE.BoxGeometry(.88,2.06,.045),wood);panel.position.set(.44,1.06,0);panel.castShadow=panel.receiveShadow=true;leaf.add(panel);
     const handle=new THREE.Mesh(new THREE.BoxGeometry(.13,.028,.035),dark);handle.position.set(.76,1.05,.04);handle.castShadow=true;leaf.add(handle);
     setDoorPose(root,{open:false,hinge:'left'},true);
+  }
+  if (isLampType(type)) {
+    root.userData.mount = type === 'floor-lamp' ? 'floor' : 'ceiling';
+    const y = type === 'floor-lamp' ? 1.3 : (type === 'pendant-light' ? .012 : -.006);
+    const diffuser = cylinder(type === 'ceiling-light' ? .205 : .14, type === 'ceiling-light' ? .205 : .14, .012, [0,y,0], new THREE.MeshStandardMaterial({color:'#fff7e6',emissive:'#ffe8bd',emissiveIntensity:1.2,roughness:.7}));
+    diffuser.name = 'fixture-emitter';
+    // A fixture must not cast a shadow over its own light source.
+    diffuser.castShadow = false;
+    const light = new THREE.SpotLight('#fff0d7',28,7,Math.PI*.4,.65,2);
+    light.name = 'fixture-light';
+    light.position.set(0,y-.035,type === 'floor-lamp' ? .07 : 0);
+    light.rotation.x = -Math.PI/2;
+    light.castShadow = true;
+    light.shadow.mapSize.set(512,512);
+    light.shadow.camera.near = .05;
+    light.shadow.bias = -.0004;
+    light.shadow.normalBias = .025;
+    light.shadow.radius = 2;
+    light.shadow.autoUpdate = false;
+    const target = new THREE.Object3D();target.name = 'fixture-target';target.position.set(0,0,-1);
+    light.add(target);
+    root.add(light);
+    setLampState(root);
   }
   const bounds = new THREE.Box3().setFromObject(root);
   root.userData.baseDimensions = bounds.getSize(new THREE.Vector3()).toArray();

@@ -12,7 +12,7 @@ class ContactShadowsPass extends SSAOPass {
 }
 
 export class SceneEffects {
-  constructor(renderer, scene, camera, editorHelper) {
+  constructor(renderer, scene, camera, editorHelper, getShadowOnly = () => null) {
     this.renderer = renderer;
     this.editorHelper = editorHelper;
     this.composer = new EffectComposer(renderer);
@@ -35,10 +35,14 @@ export class SceneEffects {
     const renderContact = this.contactPass.render.bind(this.contactPass);
     this.contactPass.render = (...args) => {
       const visible = editorHelper.visible;
+      const shadowOnly = getShadowOnly();
+      const shadowVisible = shadowOnly?.visible;
       editorHelper.visible = false;
+      if (shadowOnly) shadowOnly.visible = false;
       try { renderContact(...args); }
       finally {
         editorHelper.visible = visible;
+        if (shadowOnly) shadowOnly.visible = shadowVisible;
       }
     };
   }

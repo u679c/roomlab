@@ -9,10 +9,11 @@ import { clone as cloneModel } from "three/addons/utils/SkeletonUtils.js";
 import { Octree } from "three/addons/math/Octree.js";
 import { Capsule } from "three/addons/math/Capsule.js";
 import { FINISHES, createMaterial, defaultFinish, disposeMaterial } from "./materials.js";
-import { CATALOG, createFurniture, setDoorPose } from "./furniture.js";
+import { CATALOG, createFurniture, setDoorPose, isLampType, setLampState, setLampView } from "./furniture.js";
 import { DEFAULT_LIGHTING, sunState, validLighting } from "./lighting.js";
 import { readSurfaceMigration, migrateSurfaceProject } from "./model-migration.js";
 import { SceneEffects } from "./scene-effects.js";
+import { createCeiling, roomLightPositions } from "./interior.js";
 
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const uid = () => crypto.randomUUID();
@@ -38,7 +39,7 @@ export class Studio {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.setClearColor("#e8ecf2");
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.25;
@@ -79,8 +80,9 @@ export class Studio {
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -13, right: 13, top: 13, bottom: -13, near: 0.1, far: 55 });
-    sun.shadow.bias = -0.0003;
-    sun.shadow.normalBias = 0.025;
+    sun.shadow.bias = -0.0006;
+    sun.shadow.normalBias = 0.035;
+    sun.shadow.radius = 2;
     this.scene.add(sun);
     const fill = this.fillLight = new THREE.DirectionalLight("#ecf3ff", 1.2);
     fill.position.set(-8, 7, -9);
@@ -172,13 +174,13 @@ export class Studio {
       e.preventDefault();
       this.toast("显卡上下文已丢失，请刷新页面重新加载");
     });
-    this.effects = new SceneEffects(this.renderer,this.scene,this.camera,this.transform.getHelper());
+    this.effects = new SceneEffects(this.renderer, this.scene, this.camera, this.transform.getHelper(), () => this.ceiling?.occluder);
     this.resize = new ResizeObserver(() => {
       const { width, height } = host.getBoundingClientRect();
       this.camera.aspect = width / Math.max(height, 1);
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height);
-      this.effects.setSize(width,height);
+      this.effects.setSize(width, height);
     });
     this.resize.observe(host);
     this.clock = new THREE.Clock();
@@ -199,6 +201,7 @@ export class Studio {
     this.sun.position.fromArray(state.position).add(center);
     this.sun.target.position.copy(center);
     this.sun.target.updateMatrixWorld();
+    this.fitSunShadow();
     this.sun.intensity = state.direct;
     this.sun.castShadow = state.weather.shadows && state.direct > .01;
     this.sun.color.set('#fff5df').lerp(new THREE.Color('#ffab65'), state.warmth);
@@ -215,6 +218,24 @@ export class Studio {
     if (commit && this.history.length) this.commit();
     else { this.emit(); this.events.projectChange?.(); }
   }
+  fitSunShadow() {
+    if (!this.bounds) return;
+    // Concentrate shadow texels on the actual house instead of a 26 m-wide box.
+    const light = this.sun, camera = light.shadow.camera;
+    light.updateMatrixWorld(true);
+    light.shadow.updateMatrices(light);
+    const box = this.bounds.clone().expandByScalar(.65);
+    const lightBounds = new THREE.Box3();
+    for (const x of [box.min.x,box.max.x]) for (const y of [box.min.y,box.max.y]) for (const z of [box.min.z,box.max.z]) {
+      lightBounds.expandByPoint(new THREE.Vector3(x,y,z).applyMatrix4(camera.matrixWorldInverse));
+    }
+    Object.assign(camera, {
+      left: lightBounds.min.x, right: lightBounds.max.x,
+      bottom: lightBounds.min.y, top: lightBounds.max.y,
+      near: Math.max(.1,-lightBounds.max.z), far: Math.max(1,-lightBounds.min.z),
+    });
+    camera.updateProjectionMatrix();
+  }
   clearDoorHover() {
     this.hoverPointer = null;
     if (this.doorHover) { this.doorHover = null; this.events.doorHover?.(null); }
@@ -227,19 +248,19 @@ export class Studio {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const [x,y] = this.hoverPointer;
     this.hoverRay.setFromCamera(new THREE.Vector2((x-rect.left)/rect.width*2-1,-(y-rect.top)/rect.height*2+1), this.camera);
-    const hit = this.hoverRay.intersectObjects([this.house,this.furniture],true)[0];
+    const hit = this.hoverRay.intersectObjects([this.house,this.furniture],true).find(hit => hit.object.visible);
     let object = hit?.object;
     while (object?.parent && object.parent !== this.furniture) object = object.parent;
-    if (object?.parent !== this.furniture || object.userData.type !== 'door') {
+    if (object?.parent !== this.furniture || (object.userData.type !== 'door' && !isLampType(object.userData.type))) {
       if (this.doorHover) { this.doorHover = null; this.events.doorHover?.(null); }
       return;
     }
     const anchor = object.localToWorld(new THREE.Vector3(0,object.userData.baseDimensions[1]*.5,0)).project(this.camera);
     if (anchor.z < -1 || anchor.z > 1) { this.clearDoorHover(); return; }
-    const hover = {id:object.userData.id, open:!!object.userData.door.open,
+    const hover = {id:object.userData.id, kind:isLampType(object.userData.type) ? 'lamp' : 'door', open:!!object.userData.door?.open, on:!!object.userData.lamp?.on,
       x:Math.max(52,Math.min(rect.width-52,(anchor.x+1)*.5*rect.width))+this.host.offsetLeft,
       y:Math.max(20,Math.min(rect.height-25,(-anchor.y+1)*.5*rect.height))+this.host.offsetTop};
-    if (!this.doorHover || hover.id!==this.doorHover.id || hover.open!==this.doorHover.open || Math.abs(hover.x-this.doorHover.x)>1 || Math.abs(hover.y-this.doorHover.y)>1) {
+    if (!this.doorHover || hover.id!==this.doorHover.id || hover.open!==this.doorHover.open || hover.on!==this.doorHover.on || Math.abs(hover.x-this.doorHover.x)>1 || Math.abs(hover.y-this.doorHover.y)>1) {
       this.doorHover=hover; this.events.doorHover?.(hover);
     }
   }
@@ -252,6 +273,36 @@ export class Studio {
   toggleDoor(id) {
     const object=this.furnitureMap.get(id);
     if(object?.userData.type==='door')this.changeDoor(id,{open:!object.userData.door.open});
+  }
+  toggleFixture(id) {
+    const object = this.furnitureMap.get(id);
+    if (object?.userData.type === 'door') { this.toggleDoor(id); return; }
+    if (this.busy || object?.parent !== this.furniture || !isLampType(object.userData.type)) return;
+    setLampState(object, { on: !object.userData.lamp.on });
+    this.refreshSelection();
+    this.commit();
+  }
+  invalidateInteriorShadows() {
+    for (const object of this.furniture.children) {
+      const light = object.getObjectByName('fixture-light');
+      if (light) light.shadow.needsUpdate = true;
+    }
+  }
+  seedInteriorLights() {
+    this.defaultLightPositions.forEach(({name, point}, index) => {
+      const id = `interior-light-${name}`;
+      const object = this.furnitureMap.get(id) || createFurniture('ceiling-light');
+      object.userData = { ...object.userData, id, label: `吸顶灯 ${index + 1}`, category: 'furniture', type: 'ceiling-light', source: null };
+      object.position.copy(point);
+      object.rotation.set(0,0,0);
+      object.scale.set(1,1,1);
+      setLampState(object, { on: true });
+      this.furniture.add(object);
+      this.furnitureMap.set(id, object);
+      this.mountFurniture(object);
+      setLampView(object,this.mode);
+    });
+    this.invalidateInteriorShadows();
   }
   stopLooking() {
     const drag = this.lookDrag;
@@ -309,6 +360,11 @@ export class Studio {
     this.house.children.filter((o) => o.userData.category === "floor").forEach((o) => floorsBounds.expandByObject(o));
     this.floorY = floorsBounds.max.y;
     this.bounds = new THREE.Box3().setFromObject(this.house);
+    this.ceilingY = this.bounds.max.y;
+    this.ceiling = createCeiling(this.house, this.ceilingY);
+    this.content.add(this.ceiling.visible, this.ceiling.occluder);
+    this.defaultLightPositions = roomLightPositions(this.house, this.floorY);
+    this.seedInteriorLights();
     this.updateLighting();
     this.orbit.target.copy(this.bounds.getCenter(v()));
     this.orbit.target.y = 0.7;
@@ -381,7 +437,7 @@ export class Studio {
     const r = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(((event.clientX - r.left) / r.width) * 2 - 1, (-(event.clientY - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(this.pointer, this.camera);
-    const hit = this.ray.intersectObjects([this.house, this.furniture], true)[0];
+    const hit = this.ray.intersectObjects([this.house, this.furniture], true).find(hit => hit.object.visible);
     if (!hit) {
       this.select(null);
       return;
@@ -404,7 +460,7 @@ export class Studio {
       this.outline.material.dispose();
       this.outline = null;
     }
-    if (object) {
+    if (object && !(object.userData.mount === 'ceiling' && this.mode === 'orbit')) {
       this.outline = new THREE.BoxHelper(object, "#2457dc");
       this.outline.material.depthTest = false;
       this.outline.material.transparent = true;
@@ -416,6 +472,7 @@ export class Studio {
     this.emit();
   }
   refreshSelection() {
+    this.invalidateInteriorShadows();
     this.outline?.update();
     this.emit();
   }
@@ -428,6 +485,8 @@ export class Studio {
       id: o.userData.id,
       type: o.userData.type,
       door: o.userData.door ? { ...o.userData.door } : null,
+      lamp: o.userData.lamp ? { ...o.userData.lamp } : null,
+      mount: o.userData.mount,
       name: o.userData.label,
       category: o.userData.category,
       spec: copy(o.userData.spec || this.brush),
@@ -474,6 +533,9 @@ export class Studio {
     }
     this.stopLooking();
     this.mode = "orbit";
+    if (this.ceiling) this.ceiling.visible.visible = false;
+    this.furniture.children.forEach(object => setLampView(object,'orbit'));
+    if (this.selection?.userData.mount === 'ceiling') this.select(null);
     this.keys.clear();
     this.velocity.set(0, 0, 0);
     this.orbit.enabled = true;
@@ -506,6 +568,8 @@ export class Studio {
     }
     if (this.mode !== "walk") this.savedOrbit = { position: this.camera.position.clone(), target: this.orbit.target.clone() };
     this.mode = "walk";
+    this.ceiling.visible.visible = true;
+    this.furniture.children.forEach(object => setLampView(object,'walk'));
     if (this.tool === "spawn") this.tool = "select";
     this.keys.clear();
     this.stopLooking();
@@ -555,6 +619,7 @@ export class Studio {
       if (object.userData.type !== 'door') continue;
       const hinge=object.getObjectByName('door-hinge');
       const target=hinge.userData.targetAngle || 0;
+      if (Math.abs(hinge.rotation.y-target)>.001) this.invalidateInteriorShadows();
       hinge.rotation.y=this.reducedMotion || Math.abs(hinge.rotation.y-target)<.001 ? target : THREE.MathUtils.damp(hinge.rotation.y,target,12,dt);
     }
     this.outline?.update();
@@ -580,6 +645,7 @@ export class Studio {
     const baseDimensions = object.userData.baseDimensions || new THREE.Box3().setFromObject(object).getSize(v()).toArray();
     object.userData = { ...object.userData, baseDimensions, id: uid(), label: asset ? asset.name : CATALOG.find((x) => x.id === type)?.name || "家具", category: "furniture", type, source };
     object.position.copy(this.placementPoint());
+    setLampView(object,this.mode);
     this.furniture.add(object);
     this.furnitureMap.set(object.userData.id, object);
     this.select(object);
@@ -620,26 +686,35 @@ export class Studio {
     if (bounds.getSize(v()).length() > 20) this.toast("家具尺寸较大，请确认导出单位，并用右侧缩放调整");
   }
   groundSelected() {
-    const o = this.selection;
+    this.mountFurniture(this.selection);
+    this.refreshSelection();
+  }
+  mountFurniture(o) {
     if (o?.userData.category !== "furniture") return;
     o.updateMatrixWorld(true);
     let bounds = new THREE.Box3().setFromObject(o);
+    if (o.userData.mount === 'ceiling') {
+      o.position.y += this.ceilingY - .012 - bounds.max.y;
+      return;
+    }
     const center = bounds.getCenter(v());
     this.ray.set(new THREE.Vector3(center.x, this.bounds.max.y + 10, center.z), new THREE.Vector3(0, -1, 0));
     const hits = this.ray.intersectObjects(this.house.children).filter((h) => h.object.userData.category === "floor" && h.face.normal.y > 0.5);
     const y = hits[0]?.point.y ?? this.floorY;
     o.position.y += y - bounds.min.y;
-    this.refreshSelection();
   }
   setDimensions(dimensions) {
     const object=this.selection;
     if (object?.userData.category!=='furniture' || !Array.isArray(dimensions) || dimensions.length!==3 || !dimensions.every(n=>Number.isFinite(n)&&n>=.01&&n<=100)) return;
     const base=object.userData.baseDimensions;
     if (!base || base.some(n=>n<=0)) return;
-    const bottom = new THREE.Box3().setFromObject(object).min.y;
+    const anchorBounds = new THREE.Box3().setFromObject(object);
+    const bottom = anchorBounds.min.y;
+    const top = anchorBounds.max.y;
     object.scale.fromArray(dimensions.map((n,i)=>n/base[i]));
     object.updateMatrixWorld(true);
-    object.position.y += bottom-new THREE.Box3().setFromObject(object).min.y;
+    const resized = new THREE.Box3().setFromObject(object);
+    object.position.y += object.userData.mount === 'ceiling' ? top-resized.max.y : bottom-resized.min.y;
     this.refreshSelection();this.commit();
   }
   rotateSelected(degrees) {
@@ -659,10 +734,15 @@ export class Studio {
   duplicateSelected() {
     const o = this.selection;
     if (o?.userData.category !== "furniture") return;
-    const duplicate = cloneModel(o);
+    const duplicate = isLampType(o.userData.type) ? createFurniture(o.userData.type) : cloneModel(o);
+    duplicate.position.copy(o.position);
+    duplicate.rotation.copy(o.rotation);
+    duplicate.scale.copy(o.scale);
     duplicate.userData = { ...o.userData, id: uid() };
+    if (isLampType(o.userData.type)) setLampState(duplicate,o.userData.lamp);
     duplicate.position.x += 0.35;
     duplicate.position.z += 0.35;
+    setLampView(duplicate,this.mode);
     this.furniture.add(duplicate);
     this.furnitureMap.set(duplicate.userData.id, duplicate);
     this.select(duplicate);
@@ -692,6 +772,7 @@ export class Studio {
     return {
       version: 1,
       model: "apartment-v1",
+      interiorVersion: 1,
       lighting: { ...this.lighting },
       surfaces: [...this.surfaceMap].map(([id, o]) => ({ id, spec: copy(o.userData.spec) })),
       furniture: this.furniture.children.map((o) => ({
@@ -700,6 +781,7 @@ export class Studio {
         type: o.userData.type,
         source: o.userData.source,
         door: o.userData.door ? { ...o.userData.door } : undefined,
+        lamp: o.userData.lamp ? { ...o.userData.lamp } : undefined,
         position: o.position.toArray(),
         rotation: o.rotation.toArray(),
         scale: o.scale.toArray(),
@@ -707,6 +789,7 @@ export class Studio {
     };
   }
   commit() {
+    this.invalidateInteriorShadows();
     const state = this.snapshot();
     const json = JSON.stringify(state);
     if (this.cursor >= 0 && JSON.stringify(this.history[this.cursor]) === json) return;
@@ -743,11 +826,15 @@ export class Studio {
         this.furnitureMap.set(item.id, object);
       }
       if (item.type === 'door') setDoorPose(object,item.door || {open:false,hinge:'left'},true);
+      if (isLampType(item.type)) setLampState(object,item.lamp || {on:true});
       object.position.fromArray(item.position);
       object.rotation.fromArray(item.rotation);
       object.scale.fromArray(item.scale);
+      setLampView(object,this.mode);
       this.furniture.add(object);
     }
+    if (state.interiorVersion === undefined) this.seedInteriorLights();
+    this.invalidateInteriorShadows();
     this.emit();
     } finally { this.restoring = false; }
     this.events.projectChange?.();
@@ -796,6 +883,7 @@ export class Studio {
     };
     const vec = (a) => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
     if (p?.version !== 1 || p.model !== "apartment-v1" || !Array.isArray(p.surfaces) || !Array.isArray(p.furniture) || !Array.isArray(p.assets)) fail();
+    if (p.interiorVersion !== undefined && p.interiorVersion !== 1) fail();
     if (p.lighting !== undefined && !validLighting(p.lighting)) fail();
     if (p.surfaces.length !== this.surfaceMap.size || new Set(p.surfaces.map((s) => s.id)).size !== this.surfaceMap.size) fail();
     for (const s of p.surfaces) {
@@ -838,13 +926,25 @@ export class Studio {
         fail();
       if (f.source ? !ids.has(f.source) : !CATALOG.some((c) => c.id === f.type)) fail();
       if (f.door !== undefined && (f.type!=='door' || !f.door || typeof f.door.open!=='boolean' || !['left','right'].includes(f.door.hinge))) fail();
+      if (f.lamp !== undefined && (!isLampType(f.type) || !f.lamp || typeof f.lamp.on !== 'boolean')) fail();
       objectIds.add(f.id);
     }
   }
   async exportGLB() {
     this.content.updateMatrixWorld(true);
     const exported = cloneModel(this.content);
-    exported.traverse((object) => { if(object.userData.type==='door')setDoorPose(object,object.userData.door,true); object.userData = {}; });
+    const shadowOnly = exported.getObjectByName('ceiling-shadow-only');
+    shadowOnly?.removeFromParent();
+    const ceiling = exported.getObjectByName('interior-ceiling');
+    if (ceiling) ceiling.visible = true;
+    exported.traverse((object) => {
+      if (object.userData.type === 'door') setDoorPose(object,object.userData.door,true);
+      if (isLampType(object.userData.type)) {
+        setLampState(object,object.userData.lamp);
+        setLampView(object,'walk');
+      }
+      object.userData = {};
+    });
     const result = await new GLTFExporter().parseAsync(exported, { binary: true, onlyVisible: true, maxTextureSize: 2048 });
     download(new Blob([result], { type: "model/gltf-binary" }), "roomlab-renovation.glb");
   }
@@ -865,9 +965,11 @@ export class Studio {
     this.effects.dispose();
     const geometries = new Set(),
       materials = new Set(),
-      textures = new Set();
+      textures = new Set(),
+      shadows = new Set();
     const collect = (o) => {
       if (o.geometry) geometries.add(o.geometry);
+      if (o.isLight && o.shadow) shadows.add(o.shadow);
       for (const m of Array.isArray(o.material) ? o.material : [o.material])
         if (m) {
           materials.add(m);
@@ -877,6 +979,7 @@ export class Studio {
     this.scene.traverse(collect);
     this.furnitureMap.forEach((o) => o.traverse(collect));
     this.assets.forEach((a) => a.model.traverse(collect));
+    shadows.forEach((shadow) => shadow.dispose());
     textures.forEach((t) => t.dispose());
     materials.forEach((m) => m.dispose());
     geometries.forEach((g) => g.dispose());
