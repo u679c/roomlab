@@ -12,6 +12,7 @@ import { FINISHES, createMaterial, defaultFinish, disposeMaterial } from "./mate
 import { CATALOG, createFurniture, setDoorPose } from "./furniture.js";
 import { DEFAULT_LIGHTING, sunState, validLighting } from "./lighting.js";
 import { readSurfaceMigration, migrateSurfaceProject } from "./model-migration.js";
+import { SceneEffects } from "./scene-effects.js";
 
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const uid = () => crypto.randomUUID();
@@ -171,11 +172,13 @@ export class Studio {
       e.preventDefault();
       this.toast("显卡上下文已丢失，请刷新页面重新加载");
     });
+    this.effects = new SceneEffects(this.renderer,this.scene,this.camera,this.transform.getHelper());
     this.resize = new ResizeObserver(() => {
       const { width, height } = host.getBoundingClientRect();
       this.camera.aspect = width / Math.max(height, 1);
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height);
+      this.effects.setSize(width,height);
     });
     this.resize.observe(host);
     this.clock = new THREE.Clock();
@@ -200,8 +203,8 @@ export class Studio {
     this.sun.castShadow = state.weather.shadows && state.direct > .01;
     this.sun.color.set('#fff5df').lerp(new THREE.Color('#ffab65'), state.warmth);
     this.ambientLight.intensity = state.ambient;
-    this.ambientLight.color.set('#dce8ff').lerp(new THREE.Color('#f4c4a5'), state.warmth*.45);
-    this.ambientLight.groundColor.set('#8c9ab0');
+    this.ambientLight.color.set('#eef2fa').lerp(new THREE.Color('#f4c4a5'), state.warmth*.3);
+    this.ambientLight.groundColor.set('#b1b6bf');
     this.fillLight.intensity = state.fill;
     this.fillLight.color.set(state.day ? '#d8e4ff' : '#6d8dc6');
     const sky = new THREE.Color('#182238').lerp(new THREE.Color(state.weather.sky), state.daylight);
@@ -555,7 +558,7 @@ export class Studio {
       hinge.rotation.y=this.reducedMotion || Math.abs(hinge.rotation.y-target)<.001 ? target : THREE.MathUtils.damp(hinge.rotation.y,target,12,dt);
     }
     this.outline?.update();
-    this.renderer.render(this.scene, this.camera);
+    this.effects.render();
     this.updateDoorHover();
   }
   placementPoint() {
@@ -846,7 +849,7 @@ export class Studio {
     download(new Blob([result], { type: "model/gltf-binary" }), "roomlab-renovation.glb");
   }
   screenshot() {
-    this.renderer.render(this.scene, this.camera);
+    this.effects.render();
     this.renderer.domElement.toBlob((blob) => blob && download(blob, "roomlab-view.png"));
   }
   dispose() {
@@ -859,6 +862,7 @@ export class Studio {
     this.stopLooking();
     this.transform.dispose();
     this.draco.dispose();
+    this.effects.dispose();
     const geometries = new Set(),
       materials = new Set(),
       textures = new Set();

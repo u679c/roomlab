@@ -42,8 +42,8 @@ export function sunState(settings) {
   return {sunrise,sunset,day,altitude,daylight,warmth,weather,
     position:[-Math.sin(azimuth)*Math.cos(elevation)*24,Math.sin(elevation)*24,Math.cos(azimuth)*Math.cos(elevation)*24],
     direct:3.2*sunlight*weather.direct*settings.intensity,
-    ambient:.13+1.65*daylight*weather.ambient,
-    fill:.04+.4*daylight*weather.ambient,
+    ambient:.13+1.15*daylight*weather.ambient,
+    fill:.04+.65*daylight*weather.ambient,
     period:day?(altitude<20?(settings.time<12?'清晨':'黄昏'):'白天'):(daylight>0?'暮光':'夜晚'),
   };
 }
